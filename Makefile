@@ -1,5 +1,5 @@
 DOCKER_COMPOSE := docker-compose.yml
-DOCKER_ENV := .env
+DOCKER_ENV := .env.dev
 DOCKER_COMPOSE_RUNNER := docker compose
 
 
