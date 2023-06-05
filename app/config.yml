@@ -1,0 +1,11 @@
+database:
+  host: 0.0.0.0
+  port: 5433
+  user: postgres
+  password: postgres
+  database: mp3_converter
+
+application:
+  host: 0.0.0.0
+  port: 8080
+  base_url: "http://0.0.0.0"
