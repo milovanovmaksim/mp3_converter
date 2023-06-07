@@ -24,7 +24,7 @@ HTTP_ERROR_CODES = {
 @middleware
 async def error_handling_middleware(request: "Request", handler):
     """
-    Промежуточное ПО для обработки исключений в веб-приложений aiohttp.
+    Промежуточное ПО для обработки исключений в веб-приложении.
     """
     try:
         response = await handler(request)

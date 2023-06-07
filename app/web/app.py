@@ -31,6 +31,7 @@ def setup_app(config_path: str) -> Application:
     Создает экземпляр приложения и устанавливает ключевые
     элементы приложения (loger, database, routes, middleware, cors, config).
     Метод вызывается один раз в момент старта приложения.
+
     Returns: Возвращает экземпляр приложения.
     """
 
