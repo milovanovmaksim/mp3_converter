@@ -25,6 +25,7 @@ HTTP_ERROR_CODES = {
 async def error_handling_middleware(request: "Request", handler):
     """
     Промежуточное ПО для обработки исключений в веб-приложении.
+    Все ошибки обрабатываются централизованно в этом middleware.
     """
     try:
         response = await handler(request)
