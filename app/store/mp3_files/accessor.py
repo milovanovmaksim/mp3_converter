@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 
 class Mp3ConverterAccessor(BaseAccessor):
     """
-    Класс Mp3ConverterAccessor используется для конвертации файлов из формата WAV в формат mp3.
+    Класс Mp3ConverterAccessor, представляющий конвертер файлов из формата WAV в формат mp3.
 
     Args:
         BaseAccessor (_type_): Базовый класс accessor.
