@@ -1,10 +1,10 @@
 # MP3 converter.
-Тест задание от компании Bewise https://bewise.ai/ на должность junior python developer.
 
 ## Стэк технологий:
  - python
  - aiohttp
  - Postgresql
+ - FFmpeg
 
 ## Тест задание:
 Необходимо реализовать веб-сервис, выполняющий следующие функции:
