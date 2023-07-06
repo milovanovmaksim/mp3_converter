@@ -7,10 +7,8 @@ from tempfile import NamedTemporaryFile
 import aiofiles.os
 
 from aiohttp.web_exceptions import HTTPBadRequest
-from sqlalchemy import insert, select
+from app.store.database.database import Database
 
-
-from app.base.base_accessor import BaseAccessor
 from app.mp3_files.models import Mp3FileModel
 
 
@@ -19,27 +17,24 @@ if TYPE_CHECKING:
     from tempfile import _TemporaryFileWrapper
     from app.web.config import Config
     from concurrent.futures import ThreadPoolExecutor
+    from aiohttp.web import Application
 
 
-class Mp3ConverterAccessor(BaseAccessor):
+class WavFile:
     """
-    Класс Mp3ConverterAccessor, представляющий конвертер файлов из формата WAV в формат mp3.
+    Класс WavFile, представляющий файл формата WAV.
 
     Args:
-        BaseAccessor (_type_): Базовый класс accessor.
         filename: Имя файла, полученного от пользователя.
+        app: Экземпляр класса aiohttp.web.Application
         user_id: Идентификатор пользователя в базе данных.
-        config: Экземпляр класса Config, содержащий конфигурационные настройки приложения.
-        mp3_file_db_accessor: Экземпляр класса Mp3FileDbAccessor.
-            Используется для доступа к данным таблице "mp3_files" базы данных.
     """
 
-    def __init__(self, filename: str, app, user_id: int, *args, **kwargs):
-        super().__init__(app, args, kwargs)
+    def __init__(self, filename: str, app: "Application", user_id: int, *args, **kwargs):
         self.filename = filename
         self.user_id = user_id
-        self.config: "Config" = self.app["config"]
-        self.mp3_file_db_accessor = Mp3FileDbAccessor(self.app)
+        self.app = app
+        self.database: Database = self.app["database"]
         self._loop = asyncio.get_event_loop()
 
     async def run(self, reader: Optional[Union["MultipartReader", "BodyPartReader"]]) -> str:
@@ -61,8 +56,9 @@ class Mp3ConverterAccessor(BaseAccessor):
         if code != 0:
             in_temp_file.close()
             raise HTTPBadRequest(reason="Invalid file. Failed to convert file to mp3 format.")
-        mp3_file_model = await self.mp3_file_db_accessor.inser_file(self.user_id, out_path_file, self.filename)
+        mp3_file_model = await Mp3FileModel.inser_file(self.database, self.user_id, out_path_file, self.filename)
         url = self._generate_response(mp3_file_model.id)
+        in_temp_file.close()
         return url
 
     async def _read_by_chunck(self, reader: Optional[Union["MultipartReader", "BodyPartReader"]]) -> AsyncGenerator:
@@ -70,15 +66,12 @@ class Mp3ConverterAccessor(BaseAccessor):
         Читает файл частями по 5 Мб из сокета, чтобы не хранить большие
         файлы в оперативной памяти. Файлы в формате WAV могут достигать до 4 Гб.
         chunck - прочитанные байты из сокета.
-        size - общий размер прочитанных байтов.
         """
 
-        size = 0
         while True:
             chunk = await reader.read_chunk(5*1024*1024)  # type: ignore
             if not chunk:
                 break
-            #size += len(chunk)
             yield chunk
 
     def _convert_to_mp3(self, temp: "_TemporaryFileWrapper", out_file) -> Tuple[int, bytes, bytes]:
@@ -131,47 +124,8 @@ class Mp3ConverterAccessor(BaseAccessor):
         """
         Создает url адрес для скачивания файла.
         """
-
-        port = self.config.app_config.port
-        base_url = self.config.app_config.base_url
+        config: "Config" = self.app["config"]
+        port = config.app_config.port
+        base_url = config.app_config.base_url
         url = f"{base_url}:{port}/files.record?record_id={file_id}&user_id={self.user_id}"
         return url
-
-
-class Mp3FileDbAccessor(BaseAccessor):
-    """
-    Класс, предоставляющий доступ к данным таблице "mp3_files" в базе данных.
-    """
-
-    async def inser_file(self, user_id: int, file_path: str, filename: str) -> Mp3FileModel:
-        """
-        Добавляет новй файл в таблицу "mp3_files" базы данных.
-        Returns:
-            Возвращает идентификатор записи id в базе данных.
-        """
-
-        query = (insert(Mp3FileModel)
-                 .returning(Mp3FileModel)
-                 .values(file_path=file_path, user_id=user_id, filename=filename))
-        async with self.database.session() as session:
-            result = await session.execute(query)
-            await session.commit()
-            mp3_file_model = result.scalar_one()
-            return mp3_file_model
-
-    async def get_mp3_by_user(self, user_id: int, record_id: int) -> Optional[Mp3FileModel]:
-        """
-        Делает запрос к базе данных и возвращает запись из таблице "mp3_files" базы данных.
-        Если запись не существует, возвращает None.
-        Args:
-            record_id - идентификатор mp3 файла в базе данных.
-            user_id - идентификатор пользователя в базе данных.
-        """
-
-        query = select(Mp3FileModel).where(Mp3FileModel.id == record_id,
-                                           Mp3FileModel.user_id == user_id)
-        async with self.database.session() as session:
-            result = await session.execute(query)
-            await session.commit()
-            mp3_model = result.scalar_one_or_none()
-            return mp3_model

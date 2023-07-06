@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engin
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.engine.url import URL
 
-from app.store.database import db
+from app.store.database.sqlalchemy_base import db
 
 if TYPE_CHECKING:
     from aiohttp.web import Application
@@ -45,6 +45,6 @@ class Database:
         Удаляет пул соединений, используемый текущей сессией self.session.
         Метод вызывается один раз при остановке приложения.
         """
-       
+
         if self._engine:
             await self._engine.dispose()

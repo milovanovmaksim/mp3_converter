@@ -1,17 +1,21 @@
 import json
-from typing import List
+from typing import List, TYPE_CHECKING
 
 from aiohttp_apispec import docs, response_schema, querystring_schema
 from aiohttp.web_exceptions import HTTPBadRequest
 from aiohttp.web import Response
 from marshmallow.exceptions import ValidationError
+from app.mp3_files.models import Mp3FileModel
 
-from app.store.users.accessor import UserAccessor
+from app.users.models import UserModel
 from app.web.bases import View
 from app.mp3_files.schemas import Mp3FileShcemaResponse, Mp3FileShcemaRequest, RequestMp3DownloadFileSchema
 from app.web.utils import error_json_response, json_response
-from app.store.mp3_files.accessor import Mp3ConverterAccessor, Mp3FileDbAccessor
+from app.wav_file.wav import WavFile
 from app.web.utils import file_sender
+
+if TYPE_CHECKING:
+    from app.store.database.database import Database
 
 
 class ConvertFileView(View):
@@ -47,9 +51,8 @@ class ConvertFileView(View):
                                        status="bad request",
                                        data=e.messages_dict,
                                        message="Unprocessable Entity")
-
-        user_accessor = UserAccessor(self.request.app)
-        user_id = await user_accessor.get_user_id(int(user_id), user_uuid)  # type: ignore
+        database: "Database" = self.request.app["database"]
+        user_id = await UserModel.get_user_id(database, int(user_id), user_uuid)  # type: ignore
         if not user_id:
             return error_json_response(http_status=404,
                                        status="not found",
@@ -57,11 +60,11 @@ class ConvertFileView(View):
         multipart_reader = await self.request.multipart()
         body_part_reader = await multipart_reader.next()
         if body_part_reader:
-            filename = body_part_reader.filename  # type: ignore
-            if filename:
-                res: List[str] = filename.rsplit(".", maxsplit=1)
+            file = body_part_reader.filename  # type: ignore
+            if file:
+                res: List[str] = file.rsplit(".", maxsplit=1)
                 filename: str = res[0]
-                mp3_accessor = Mp3ConverterAccessor(filename, self.request.app, user_id)
+                mp3_accessor = WavFile(filename, self.request.app, user_id)
                 url = await mp3_accessor.run(body_part_reader)
                 return json_response(Mp3FileShcemaResponse(), data={"url": url})
         raise HTTPBadRequest(reason="File is required.")
@@ -87,17 +90,18 @@ class DownloadMp3FileView(View):
             _type_: Возвращает экземпляр класса aiohttp.web_response.Response.
         """
         data = self.query
-        mp3_file_accessor = Mp3FileDbAccessor(self.request.app)
-        mp3_model = await mp3_file_accessor.get_mp3_by_user(**data)
+        database: "Database" = self.request.app["database"]
+        mp3_model = await Mp3FileModel.get_mp3_by_user(database, **data)
         if not mp3_model:
             return error_json_response(http_status=404,
                                        status="not found",
                                        message="User or required mp3 file not found")
-        headers = {
-            "Content-disposition": f"attachment; filename={mp3_model.filename}"
-        }
-        body = file_sender(file_name=mp3_model.file_path)
-        return Response(
-            body=body,
-            headers=headers
-        )
+        else:
+            headers = {
+                "Content-disposition": f"attachment; filename={mp3_model.filename}"
+            }
+            body = file_sender(file_name=mp3_model.file_path)
+            return Response(
+                body=body,
+                headers=headers
+            )

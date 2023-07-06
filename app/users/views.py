@@ -1,9 +1,14 @@
+from typing import TYPE_CHECKING
+
 from aiohttp_apispec import docs, request_schema, response_schema
-from app.store.users.accessor import UserAccessor
+from app.users.models import UserModel
 
 from app.users.schemas import UserRequestSchema, UserResponseSchema
 from app.web.bases import View
 from app.web.utils import json_response
+
+if TYPE_CHECKING:
+    from app.store.database.database import Database
 
 
 class UserCreteView(View):
@@ -28,6 +33,6 @@ class UserCreteView(View):
         """
         data = self.data
         username = data["username"]
-        user_accessor = UserAccessor(self.request.app)
-        user = await user_accessor.add_user(data={"username": username})
+        database: "Database" = self.request.app["database"]
+        user = await UserModel.add_user(database, data={"username": username})
         return json_response(UserResponseSchema(), data={"data": user})
